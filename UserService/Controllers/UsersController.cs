@@ -1,6 +1,8 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using UserService.Data;
 
 namespace UserService.Controllers
 {
@@ -9,29 +11,29 @@ namespace UserService.Controllers
     [Authorize] // Bắt buộc phải có JWT Token hợp lệ mới truy cập được
     public class UsersController : ControllerBase
     {
-        // Giả lập danh sách User trong DB
-        private static readonly List<object> UserList = new()
-        {
-            new { Id = 1, Username = "admin", Email = "admin@example.com", Role = "Admin" },
-            new { Id = 2, Username = "john_doe", Email = "john@example.com", Role = "User" },
-            new { Id = 3, Username = "jane_doe", Email = "jane@example.com", Role = "User" }
-        };
+        private readonly UserDbContext _context;
 
-        [HttpGet]
-        public IActionResult GetAllUsers()
+        public UsersController(UserDbContext context)
         {
-            // Lấy thông tin User hiện tại từ JWT Token
-            var currentUsername = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                                  ?? User.FindFirst(ClaimTypes.Name)?.Value;
+            _context = context;
+        }
+
+        [HttpGet("GetAllUsers")]
+        public async Task<IActionResult> GetAllUsers()
+        {
+            var users = await _context.LtmUsers
+                .Select(u => new { u.Username })
+                .ToListAsync();
 
             return Ok(new
             {
-                Message = $"Xác thực thành công! Xin chào {currentUsername}",
-                Data = UserList
+                Message = $"Xác thực JWT thành công! Xin chào {User.Identity?.Name}",
+                TotalUsers = users.Count,
+                Data = users
             });
         }
 
-        [HttpGet("me")]
+        [HttpGet("GetProfile")]
         public IActionResult GetProfile()
         {
             var username = User.Identity?.Name;

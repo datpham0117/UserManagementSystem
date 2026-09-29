@@ -1,6 +1,8 @@
-﻿using AuthService.DTOs;
+﻿using AuthService.Data;
+using AuthService.DTOs;
 using AuthService.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -12,63 +14,58 @@ namespace AuthService.Controllers
     [Route("auth")]
     public class AuthController : ControllerBase
     {
-        // Giả lập Database trong bộ nhớ (In-Memory Data)
-        private static readonly List<User> Users = new();
+        private readonly AuthDbContext _context;
         private readonly IConfiguration _configuration;
 
-        public AuthController(IConfiguration configuration)
+        public AuthController(AuthDbContext context, IConfiguration configuration)
         {
+            _context = context;
             _configuration = configuration;
         }
 
         [HttpPost("register")]
-        public IActionResult Register([FromBody] RegisterDto request)
+        public async Task<IActionResult> Register([FromBody] RegisterDto request)
         {
-            if (Users.Any(u => u.Username == request.Username))
+            if (await _context.LtmUsers.AnyAsync(u => u.Username == request.Username))
             {
-                return BadRequest(new { message = "Tên đăng nhập đã tồn tại." });
+                return BadRequest(new { message = "Tài khoản đã tồn tại." });
             }
 
-            // Mã hóa mật khẩu (sử dụng BCrypt hoặc PasswordHasher trong thực tế)
-            var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-
-            var newUser = new User
+            var newUser = new LtmUser
             {
-                Id = Users.Count + 1,
                 Username = request.Username,
-                PasswordHash = passwordHash,
-                Role = "User"
+                Password = request.Password
             };
 
-            Users.Add(newUser);
+            _context.LtmUsers.Add(newUser);
+            await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Đăng ký tài khoản thành công!" });
+            return Ok(new { message = "Đăng ký thành công tài khoản!" });
         }
 
         [HttpPost("login")]
-        public IActionResult Login([FromBody] LoginDto request)
+        public async Task<IActionResult> Login([FromBody] LoginDto request)
         {
-            var user = Users.FirstOrDefault(u => u.Username == request.Username);
+            var user = await _context.LtmUsers
+                .FirstOrDefaultAsync(u => u.Username == request.Username && u.Password == request.Password);
 
-            if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+            if (user == null)
             {
-                return Unauthorized(new { message = "Tên đăng nhập hoặc mật khẩu không chính xác." });
+                return Unauthorized(new { message = "Username hoặc password không chính xác." });
             }
 
             var token = GenerateJwtToken(user);
             return Ok(new TokenResponseDto { Token = token });
         }
 
-        private string GenerateJwtToken(User user)
+        private string GenerateJwtToken(LtmUser user)
         {
             var jwtSettings = _configuration.GetSection("JwtSettings");
             var key = Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]!);
 
             var claims = new[]
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-                new Claim(JwtRegisteredClaimNames.UniqueName, user.Username),
-                new Claim(ClaimTypes.Role, user.Role),
+                new Claim(ClaimTypes.Name, user.Username),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
 
