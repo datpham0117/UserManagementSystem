@@ -66,6 +66,7 @@ namespace AuthService.Controllers
             var claims = new[]
             {
                 new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.Role, user.Role), // Ghi nhận Role vào Token Claim
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
 

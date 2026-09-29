@@ -15,5 +15,17 @@ namespace UserService.Models
         [Column("password")]
         [StringLength(255)]
         public string Password { get; set; } = string.Empty;
+
+        [Column("email")]
+        [StringLength(100)]
+        public string? Email { get; set; }
+
+        [Column("sdt")]
+        [StringLength(20)]
+        public string? Sdt { get; set; }
+
+        [Column("role")]
+        [StringLength(20)]
+        public string Role { get; set; } = "User";
     }
 }
